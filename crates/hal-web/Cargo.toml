@@ -30,4 +30,8 @@ features = [
     "KeyboardEvent",
     "Node",
     "console",
+    "History",
+    "Location",
+    "UrlSearchParams",
+    "PopStateEvent",
 ]

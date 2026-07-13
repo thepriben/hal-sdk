@@ -66,8 +66,9 @@ cargo run -p hal-cli -- europe 10
 The `hal-web` crate is a framework-free front-end written entirely in Rust. It builds
 the DOM with `web-sys` and calls the SDK directly from the browser — the HAL API sends
 `Access-Control-Allow-Origin: *`, so no backend is required. It offers **quick** search
-(debounced, as you type) and **fine-grained** search (scoped to title, author, abstract
-or keyword).
+(debounced, as you type), **fine-grained** search (scoped to title, author, abstract
+or keyword), page-by-page navigation, and **shareable URLs** (the query, scope and page
+are encoded as `?q=…&scope=…&page=…`).
 
 **Live demo:** <https://thepriben.github.io/hal-api-rust/>
 

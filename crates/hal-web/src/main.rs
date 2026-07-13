@@ -3,6 +3,9 @@
 //! The whole application is written in Rust: it builds the DOM with `web-sys`
 //! and calls the SDK directly from the browser (the HAL API allows
 //! cross-origin requests, so no backend is required). Build it with `trunk`.
+//!
+//! Features: quick (debounced) search, fine-grained field-scoped search,
+//! page-by-page navigation, and a shareable URL (`?q=…&scope=…&page=…`).
 
 use std::cell::RefCell;
 
@@ -10,12 +13,21 @@ use hal_sdk::{Field, HalClient, SearchQuery};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::{Document, Element, Event, HtmlInputElement, HtmlSelectElement};
+use web_sys::{Document, Element, Event, HtmlInputElement, HtmlSelectElement, UrlSearchParams};
 
 const RESULTS_ID: &str = "results";
 const STATUS_ID: &str = "status";
 const INPUT_ID: &str = "query";
 const SCOPE_ID: &str = "scope";
+const PAGER_ID: &str = "pager";
+const PREV_ID: &str = "prev";
+const NEXT_ID: &str = "next";
+const PAGEINFO_ID: &str = "pageinfo";
+
+const GITHUB_URL: &str = "https://github.com/thepriben/hal-api-rust";
+const BOOK_URL: &str =
+    "https://www.editions-eni.fr/livre/rust-developpez-des-programmes-robustes-et-securises-9782409035289";
+
 const PAGE_SIZE: u32 = 20;
 const DEBOUNCE_MS: i32 = 300;
 
@@ -29,12 +41,20 @@ const RETURNED_FIELDS: [&str; 7] = [
     "docType_s",
 ];
 
-/// A scheduled debounce timer: its handle (to cancel it) and the closure it runs
-/// (kept alive until it fires or is replaced).
+/// The state currently shown, so the pager buttons know where to go next.
+#[derive(Clone, Default)]
+struct Current {
+    q: String,
+    scope: String,
+    page: u32,
+    num_found: i64,
+}
+
+/// A scheduled debounce timer: its handle (to cancel it) and the closure it runs.
 type DebounceTimer = (i32, Closure<dyn FnMut()>);
 
 thread_local! {
-    // Keeps the pending debounce timer alive between keystrokes.
+    static CURRENT: RefCell<Current> = RefCell::new(Current::default());
     static DEBOUNCE: RefCell<Option<DebounceTimer>> = const { RefCell::new(None) };
 }
 
@@ -44,6 +64,7 @@ fn main() {
         .and_then(|w| w.document())
         .expect("a browser document is required");
     build_ui(&document);
+    restore_from_url(&document);
 }
 
 fn build_ui(document: &Document) {
@@ -110,22 +131,78 @@ fn build_ui(document: &Document) {
     results.set_id(RESULTS_ID);
     root.append_child(&results).unwrap();
 
+    build_pager(document, &root);
+    build_footer(document, &root);
+
     body.append_child(&root).unwrap();
 
     wire_events(document, &form, &input, &scope);
 }
 
+fn build_pager(document: &Document, root: &Element) {
+    let pager = el(document, "nav");
+    pager.set_id(PAGER_ID);
+    pager.set_class_name("pager");
+    pager.set_attribute("hidden", "").unwrap();
+
+    let prev = el(document, "button");
+    prev.set_id(PREV_ID);
+    prev.set_attribute("type", "button").unwrap();
+    prev.set_text_content(Some("← Previous"));
+    pager.append_child(&prev).unwrap();
+
+    let info = el(document, "span");
+    info.set_id(PAGEINFO_ID);
+    info.set_class_name("pageinfo");
+    pager.append_child(&info).unwrap();
+
+    let next = el(document, "button");
+    next.set_id(NEXT_ID);
+    next.set_attribute("type", "button").unwrap();
+    next.set_text_content(Some("Next →"));
+    pager.append_child(&next).unwrap();
+
+    root.append_child(&pager).unwrap();
+}
+
+fn build_footer(document: &Document, root: &Element) {
+    let footer = el(document, "footer");
+
+    let gh = el(document, "a");
+    gh.set_attribute("href", GITHUB_URL).unwrap();
+    gh.set_attribute("target", "_blank").unwrap();
+    gh.set_attribute("rel", "noopener").unwrap();
+    gh.set_text_content(Some("Source on GitHub"));
+    footer.append_child(&gh).unwrap();
+
+    let sep = el(document, "span");
+    sep.set_class_name("sep");
+    sep.set_text_content(Some(" · "));
+    footer.append_child(&sep).unwrap();
+
+    let book = el(document, "a");
+    book.set_attribute("href", BOOK_URL).unwrap();
+    book.set_attribute("target", "_blank").unwrap();
+    book.set_attribute("rel", "noopener").unwrap();
+    book.set_text_content(Some("Book — Rust (ENI, 1st edition, 2022)"));
+    footer.append_child(&book).unwrap();
+
+    root.append_child(&footer).unwrap();
+}
+
 fn wire_events(document: &Document, form: &Element, input: &Element, scope: &Element) {
-    // Submitting the form triggers an immediate search (no page reload).
+    // Submitting the form runs an immediate search (page 0), pushing a history entry.
     on(form, "submit", {
         let document = document.clone();
         move |event: Event| {
             event.prevent_default();
-            search_now(&document);
+            let (q, scope) = read_inputs(&document);
+            navigate(&document, &q, &scope, 0, Nav::Push);
         }
     });
 
-    // Typing triggers a debounced ("quick") search.
+    // Typing runs a debounced ("quick") search; it only replaces the URL to avoid
+    // flooding the history with one entry per keystroke.
     on(input, "input", {
         let document = document.clone();
         move |_event: Event| schedule_search(&document)
@@ -134,8 +211,54 @@ fn wire_events(document: &Document, form: &Element, input: &Element, scope: &Ele
     // Changing the scope re-runs the search right away.
     on(scope, "change", {
         let document = document.clone();
-        move |_event: Event| search_now(&document)
+        move |_event: Event| {
+            let (q, scope) = read_inputs(&document);
+            navigate(&document, &q, &scope, 0, Nav::Push);
+        }
     });
+
+    // Page navigation.
+    if let Some(prev) = document.get_element_by_id(PREV_ID) {
+        on(&prev, "click", {
+            let document = document.clone();
+            move |_event: Event| {
+                let c = current();
+                if c.page > 0 {
+                    navigate(&document, &c.q, &c.scope, c.page - 1, Nav::Push);
+                }
+            }
+        });
+    }
+    if let Some(next) = document.get_element_by_id(NEXT_ID) {
+        on(&next, "click", {
+            let document = document.clone();
+            move |_event: Event| {
+                let c = current();
+                let total_pages = (c.num_found as u64).div_ceil(PAGE_SIZE as u64).max(1);
+                if (c.page as u64) + 1 < total_pages {
+                    navigate(&document, &c.q, &c.scope, c.page + 1, Nav::Push);
+                }
+            }
+        });
+    }
+
+    // Back/forward buttons restore the state encoded in the URL.
+    let window = web_sys::window().expect("window");
+    let document = document.clone();
+    let popstate = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        restore_from_url(&document);
+    });
+    window
+        .add_event_listener_with_callback("popstate", popstate.as_ref().unchecked_ref())
+        .unwrap();
+    popstate.forget();
+}
+
+/// How the URL should be updated for a navigation.
+#[derive(Clone, Copy)]
+enum Nav {
+    Push,
+    Replace,
 }
 
 /// Debounce: cancel any pending search and schedule a new one shortly after.
@@ -148,7 +271,10 @@ fn schedule_search(document: &Document) {
         }
 
         let document = document.clone();
-        let callback = Closure::<dyn FnMut()>::new(move || search_now(&document));
+        let callback = Closure::<dyn FnMut()>::new(move || {
+            let (q, scope) = read_inputs(&document);
+            navigate(&document, &q, &scope, 0, Nav::Replace);
+        });
         let handle = window
             .set_timeout_with_callback_and_timeout_and_arguments_0(
                 callback.as_ref().unchecked_ref(),
@@ -159,19 +285,36 @@ fn schedule_search(document: &Document) {
     });
 }
 
-fn search_now(document: &Document) {
-    let query = value(document, INPUT_ID);
-    let query = query.trim().to_owned();
-    let scope = value(document, SCOPE_ID);
+/// Update the URL and run the search (without touching the form fields).
+fn navigate(document: &Document, q: &str, scope: &str, page: u32, nav: Nav) {
+    set_url(nav, q, scope, page);
+    run_search(document, q.to_owned(), scope.to_owned(), page);
+}
 
-    if query.is_empty() {
+/// Read the URL, reflect it into the form fields, and run the search.
+fn restore_from_url(document: &Document) {
+    let (q, scope, page) = parse_url();
+    set_value(document, INPUT_ID, &q);
+    set_value(document, SCOPE_ID, &scope);
+    if q.trim().is_empty() {
+        set_status(document, "Type to search — results appear as you type.");
+        clear_results(document);
+        hide_pager(document);
+    } else {
+        run_search(document, q, scope, page);
+    }
+}
+
+fn run_search(document: &Document, q: String, scope: String, page: u32) {
+    let q = q.trim().to_owned();
+    if q.is_empty() {
         set_status(document, "Type something to search for.");
         clear_results(document);
+        hide_pager(document);
         return;
     }
 
-    let search = build_query(&scope, &query);
-
+    let search = build_query(&scope, &q, page);
     let document = document.clone();
     set_status(&document, "Searching…");
 
@@ -179,22 +322,32 @@ fn search_now(document: &Document) {
         let client = HalClient::new();
         match client.search(&search).await {
             Ok(results) => {
+                let num_found = results.num_found();
+                set_current(Current {
+                    q: q.clone(),
+                    scope: scope.clone(),
+                    page,
+                    num_found,
+                });
                 set_status(
                     &document,
                     &format!(
-                        "{} documents found — showing {}.",
-                        results.num_found(),
+                        "{num_found} documents found — showing {}.",
                         results.docs().len()
                     ),
                 );
                 render_results(&document, results.docs());
+                update_pager(&document, page, num_found);
             }
-            Err(reason) => set_status(&document, &format!("Error: {reason}")),
+            Err(reason) => {
+                set_status(&document, &format!("Error: {reason}"));
+                hide_pager(&document);
+            }
         }
     });
 }
 
-fn build_query(scope: &str, query: &str) -> SearchQuery {
+fn build_query(scope: &str, query: &str, page: u32) -> SearchQuery {
     let base = match scope {
         "title" => SearchQuery::in_field(Field::Title, query),
         "author" => SearchQuery::in_field(Field::Author, query),
@@ -202,7 +355,7 @@ fn build_query(scope: &str, query: &str) -> SearchQuery {
         "keyword" => SearchQuery::in_field(Field::Keyword, query),
         _ => SearchQuery::basic(query),
     };
-    base.fields(RETURNED_FIELDS).rows(PAGE_SIZE)
+    base.fields(RETURNED_FIELDS).page(page, PAGE_SIZE)
 }
 
 fn render_results(document: &Document, docs: &[hal_sdk::HalDoc]) {
@@ -252,6 +405,73 @@ fn render_results(document: &Document, docs: &[hal_sdk::HalDoc]) {
     }
 }
 
+fn update_pager(document: &Document, page: u32, num_found: i64) {
+    let Some(pager) = document.get_element_by_id(PAGER_ID) else {
+        return;
+    };
+    if num_found <= 0 {
+        pager.set_attribute("hidden", "").unwrap();
+        return;
+    }
+    pager.remove_attribute("hidden").unwrap();
+
+    let total_pages = ((num_found as u64).div_ceil(PAGE_SIZE as u64)).max(1);
+    let human_page = page as u64 + 1;
+
+    if let Some(info) = document.get_element_by_id(PAGEINFO_ID) {
+        info.set_text_content(Some(&format!("Page {human_page} of {total_pages}")));
+    }
+    set_disabled(document, PREV_ID, page == 0);
+    set_disabled(document, NEXT_ID, human_page >= total_pages);
+}
+
+// --- URL state -------------------------------------------------------------
+
+fn set_url(nav: Nav, q: &str, scope: &str, page: u32) {
+    let window = web_sys::window().expect("window");
+    let history = window.history().expect("history");
+
+    let params = UrlSearchParams::new().expect("UrlSearchParams");
+    params.set("q", q);
+    params.set("scope", scope);
+    params.set("page", &page.to_string());
+    let url = format!("?{}", String::from(params.to_string()));
+
+    let result = match nav {
+        Nav::Push => history.push_state_with_url(&JsValue::NULL, "", Some(&url)),
+        Nav::Replace => history.replace_state_with_url(&JsValue::NULL, "", Some(&url)),
+    };
+    let _ = result;
+}
+
+fn parse_url() -> (String, String, u32) {
+    let window = web_sys::window().expect("window");
+    let search = window.location().search().unwrap_or_default();
+    let params = UrlSearchParams::new_with_str(&search)
+        .unwrap_or_else(|_| UrlSearchParams::new().expect("UrlSearchParams"));
+    let q = params.get("q").unwrap_or_default();
+    let scope = params.get("scope").unwrap_or_else(|| "all".to_owned());
+    let page = params
+        .get("page")
+        .and_then(|p| p.parse::<u32>().ok())
+        .unwrap_or(0);
+    (q, scope, page)
+}
+
+// --- small DOM helpers ------------------------------------------------------
+
+fn read_inputs(document: &Document) -> (String, String) {
+    (value(document, INPUT_ID), value(document, SCOPE_ID))
+}
+
+fn current() -> Current {
+    CURRENT.with(|c| c.borrow().clone())
+}
+
+fn set_current(new: Current) {
+    CURRENT.with(|c| *c.borrow_mut() = new);
+}
+
 /// Attach an event listener, leaking the closure so it lives for the app's lifetime.
 fn on<F>(target: &Element, event: &str, handler: F)
 where
@@ -277,6 +497,27 @@ fn value(document: &Document, id: &str) -> String {
     String::new()
 }
 
+fn set_value(document: &Document, id: &str, value: &str) {
+    let Some(element) = document.get_element_by_id(id) else {
+        return;
+    };
+    if let Some(input) = element.dyn_ref::<HtmlInputElement>() {
+        input.set_value(value);
+    } else if let Some(select) = element.dyn_ref::<HtmlSelectElement>() {
+        select.set_value(if value.is_empty() { "all" } else { value });
+    }
+}
+
+fn set_disabled(document: &Document, id: &str, disabled: bool) {
+    if let Some(element) = document.get_element_by_id(id) {
+        if disabled {
+            element.set_attribute("disabled", "").unwrap();
+        } else {
+            element.remove_attribute("disabled").unwrap();
+        }
+    }
+}
+
 fn set_status(document: &Document, message: &str) {
     if let Some(status) = document.get_element_by_id(STATUS_ID) {
         status.set_text_content(Some(message));
@@ -286,6 +527,12 @@ fn set_status(document: &Document, message: &str) {
 fn clear_results(document: &Document) {
     if let Some(container) = document.get_element_by_id(RESULTS_ID) {
         container.set_inner_html("");
+    }
+}
+
+fn hide_pager(document: &Document) {
+    if let Some(pager) = document.get_element_by_id(PAGER_ID) {
+        pager.set_attribute("hidden", "").unwrap();
     }
 }
 
