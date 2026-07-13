@@ -24,7 +24,7 @@ const PREV_ID: &str = "prev";
 const NEXT_ID: &str = "next";
 const PAGEINFO_ID: &str = "pageinfo";
 
-const GITHUB_URL: &str = "https://github.com/thepriben/hal-api-rust";
+const GITHUB_URL: &str = "https://github.com/thepriben/hal-sdk";
 const BOOK_URL: &str =
     "https://www.editions-eni.fr/livre/rust-developpez-des-programmes-robustes-et-securises-9782409035289";
 

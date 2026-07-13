@@ -17,8 +17,8 @@ version = "0.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 authors = ["Benoît Prieur"]
-repository = "https://github.com/thepriben/hal-api-rust"
-homepage = "https://github.com/thepriben/hal-api-rust"
+repository = "https://github.com/thepriben/hal-sdk"
+homepage = "https://thepriben.github.io/hal-sdk/"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

@@ -70,7 +70,7 @@ the DOM with `web-sys` and calls the SDK directly from the browser — the HAL A
 or keyword), page-by-page navigation, and **shareable URLs** (the query, scope and page
 are encoded as `?q=…&scope=…&page=…`).
 
-**Live demo:** <https://thepriben.github.io/hal-api-rust/>
+**Live demo:** <https://thepriben.github.io/hal-sdk/>
 
 It is deployed automatically by the [Pages workflow](.github/workflows/pages.yml) on
 every push to `main`. Enable it once in *Settings → Pages → Build and deployment →
