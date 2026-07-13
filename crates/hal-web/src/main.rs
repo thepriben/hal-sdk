@@ -25,6 +25,8 @@ const NEXT_ID: &str = "next";
 const PAGEINFO_ID: &str = "pageinfo";
 
 const GITHUB_URL: &str = "https://github.com/thepriben/hal-sdk";
+const CRATES_URL: &str = "https://crates.io/crates/hal-sdk";
+const DOCS_URL: &str = "https://docs.rs/hal-sdk";
 const BOOK_URL: &str =
     "https://www.editions-eni.fr/livre/rust-developpez-des-programmes-robustes-et-securises-9782409035289";
 
@@ -168,24 +170,28 @@ fn build_pager(document: &Document, root: &Element) {
 fn build_footer(document: &Document, root: &Element) {
     let footer = el(document, "footer");
 
-    let gh = el(document, "a");
-    gh.set_attribute("href", GITHUB_URL).unwrap();
-    gh.set_attribute("target", "_blank").unwrap();
-    gh.set_attribute("rel", "noopener").unwrap();
-    gh.set_text_content(Some("Source on GitHub"));
-    footer.append_child(&gh).unwrap();
+    let links = [
+        (GITHUB_URL, "Source on GitHub"),
+        (CRATES_URL, "crates.io"),
+        (DOCS_URL, "docs.rs"),
+        (BOOK_URL, "Book — Rust (ENI, 1st edition, 2022)"),
+    ];
 
-    let sep = el(document, "span");
-    sep.set_class_name("sep");
-    sep.set_text_content(Some(" · "));
-    footer.append_child(&sep).unwrap();
+    for (index, (href, label)) in links.iter().enumerate() {
+        if index > 0 {
+            let sep = el(document, "span");
+            sep.set_class_name("sep");
+            sep.set_text_content(Some(" · "));
+            footer.append_child(&sep).unwrap();
+        }
 
-    let book = el(document, "a");
-    book.set_attribute("href", BOOK_URL).unwrap();
-    book.set_attribute("target", "_blank").unwrap();
-    book.set_attribute("rel", "noopener").unwrap();
-    book.set_text_content(Some("Book — Rust (ENI, 1st edition, 2022)"));
-    footer.append_child(&book).unwrap();
+        let link = el(document, "a");
+        link.set_attribute("href", href).unwrap();
+        link.set_attribute("target", "_blank").unwrap();
+        link.set_attribute("rel", "noopener").unwrap();
+        link.set_text_content(Some(label));
+        footer.append_child(&link).unwrap();
+    }
 
     root.append_child(&footer).unwrap();
 }
