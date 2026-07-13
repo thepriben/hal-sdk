@@ -1,0 +1,28 @@
+[package]
+name = "hal-sdk"
+description = "Async Rust SDK for the HAL open-archive API (hal.science) — companion crate of chapter 16 of the book Rust (ENI, 2022)."
+keywords = ["hal", "archives", "sdk", "editions-eni", "2022"]
+categories = ["api-bindings"]
+readme = "README.md"
+documentation = "https://docs.rs/hal-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# On native targets we bundle a TLS backend (rustls) so HTTPS works out of the box.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# On wasm32 the browser provides the transport (fetch); no TLS backend is needed.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

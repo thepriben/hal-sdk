@@ -1,20 +1,26 @@
-[package]
-name = "apiarchivesouvertesrust"
-version = "0.1.0"
+[workspace]
+resolver = "2"
+members = [
+    "crates/hal-sdk",
+    "crates/hal-cli",
+    "crates/hal-web",
+]
+# `cargo build` / `cargo test` at the root only build the native crates.
+# The WebAssembly front-end (hal-web) is built with `trunk` (see crates/hal-web).
+default-members = [
+    "crates/hal-sdk",
+    "crates/hal-cli",
+]
+
+[workspace.package]
+version = "0.2.0"
 edition = "2021"
-description = "Rust library that allow to access Archives ouvertes (HAL)."
 license = "MIT OR Apache-2.0"
-keywords = ["HAL", "archives", "ouvertes"]
-categories = ["api-bindings"]
-readme = "README.md"
 authors = ["Benoît Prieur"]
-repository = "https://github.com/benprieur/apiarchivesouvertesrust"
-homepage = "https://github.com/benprieur/apiarchivesouvertesrust"
+repository = "https://github.com/thepriben/hal-api-rust"
+homepage = "https://github.com/thepriben/hal-api-rust"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-reqwest = { version = "0.11.9", features = ["blocking"] }
-json = "0.12.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hal-sdk = { path = "crates/hal-sdk", version = "0.2.0" }
