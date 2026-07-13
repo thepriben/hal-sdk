@@ -1,5 +1,8 @@
 # hal-sdk
 
+[![crates.io](https://img.shields.io/crates/v/hal-sdk.svg)](https://crates.io/crates/hal-sdk)
+[![docs.rs](https://img.shields.io/docsrs/hal-sdk)](https://docs.rs/hal-sdk)
+
 An asynchronous Rust SDK for the [HAL](https://hal.science) open-archive search API.
 
 ## What is HAL?
