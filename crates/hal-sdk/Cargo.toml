@@ -1,7 +1,7 @@
 [package]
 name = "hal-sdk"
-description = "Async Rust SDK for the HAL open-archive API (hal.science) — companion crate of chapter 16 of the book Rust (ENI, 2022)."
-keywords = ["hal", "archives", "sdk", "editions-eni", "2022"]
+description = "Async Rust SDK for the HAL open-archive API (hal.science) — companion crate of the book Rust (ENI)."
+keywords = ["hal", "archives", "sdk", "editions-eni"]
 categories = ["api-bindings"]
 readme = "README.md"
 documentation = "https://docs.rs/hal-sdk"

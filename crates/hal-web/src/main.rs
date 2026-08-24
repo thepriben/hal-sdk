@@ -174,7 +174,7 @@ fn build_footer(document: &Document, root: &Element) {
         (GITHUB_URL, "Source on GitHub"),
         (CRATES_URL, "crates.io"),
         (DOCS_URL, "docs.rs"),
-        (BOOK_URL, "Book — Rust (ENI, 1st edition, 2022)"),
+        (BOOK_URL, "Book — Rust (ENI)"),
     ];
 
     for (index, (href, label)) in links.iter().enumerate() {

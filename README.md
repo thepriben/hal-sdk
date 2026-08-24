@@ -18,8 +18,11 @@ archive is multilingual and international. HAL exposes a public HTTP search API
 
 ## Companion project
 
-This repository is the companion project of chapter 16 of the book *Rust* by
-Benoît Prieur ("Projet final : coder et publier une caisse"), brought up to date.
+This repository is a companion project of the book *Rust* by Benoît Prieur
+(éditions ENI). It accompanied chapter 16 of the first edition
+("Projet final : coder et publier une caisse"), and remains a companion
+project of the second edition.
+
 The original chapter published a minimal, blocking, basic-search-only crate
 (`apiarchivesouvertesrust` `0.1`). This version modernises it into a complete,
 asynchronous, WebAssembly-capable SDK, plus a small web application built on top of it.
