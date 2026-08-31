@@ -20,12 +20,17 @@ archive is multilingual and international. HAL exposes a public HTTP search API
 
 This repository is a companion project of the book *Rust* by Benoît Prieur
 (éditions ENI). It accompanied chapter 16 of the first edition
-("Projet final : coder et publier une caisse"), and remains a companion
-project of the second edition.
+("Projet final : coder et publier une caisse"), and comes back in the second
+edition as the subject of chapter 15, devoted to writing an asynchronous client
+for a real-world API.
 
 The original chapter published a minimal, blocking, basic-search-only crate
 (`apiarchivesouvertesrust` `0.1`). This version modernises it into a complete,
 asynchronous, WebAssembly-capable SDK, plus a small web application built on top of it.
+
+The second edition ships a second companion project, a scientific calculator whose
+pure-logic core is compiled to WebAssembly:
+<https://github.com/thepriben/calculatrice-sci>.
 
 ## Workspace layout
 

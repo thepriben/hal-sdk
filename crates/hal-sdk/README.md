@@ -61,10 +61,15 @@ async fn main() -> Result<(), hal_sdk::HalError> {
 
 ## Companion project
 
-This crate is the companion project of chapter 16 of the book *Rust* by Benoît Prieur
-("Projet final : coder et publier une caisse"), brought up to date. The original chapter
-shipped a minimal, blocking, basic-search-only library; this version is a complete,
-asynchronous, WebAssembly-capable SDK.
+This crate is the companion project of chapter 15 of the book *Rust* by Benoît Prieur
+(éditions ENI, second edition). It brings up to date the crate published with chapter 16
+of the first edition ("Projet final : coder et publier une caisse"), which shipped a
+minimal, blocking, basic-search-only library. This version is a complete, asynchronous,
+WebAssembly-capable SDK.
+
+The second edition ships a second companion project, a scientific calculator built
+around the [`calc-core`](https://crates.io/crates/calc-core) crate:
+<https://github.com/thepriben/calculatrice-sci>.
 
 ## License
 
