@@ -61,6 +61,11 @@ pub struct FacetCounts {
 
 impl FacetCounts {
     /// Return the `(value, count)` pairs for a facet field, in the order HAL sent them.
+    // `chunks_exact(2)` states the intent more plainly than `as_chunks::<2>()` and works on
+    // older toolchains, so the lint that suggests the newer API is waived. The outer `allow`
+    // keeps this file compiling warning-free on compilers that predate that lint.
+    #[allow(unknown_lints)]
+    #[allow(clippy::chunks_exact_to_as_chunks)]
     pub fn field(&self, name: &str) -> Vec<(String, i64)> {
         let Some(raw) = self.facet_fields.get(name) else {
             return Vec::new();
