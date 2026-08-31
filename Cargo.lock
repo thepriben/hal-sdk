@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "hal-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "hal-sdk",
  "tokio",
@@ -180,7 +180,7 @@ dependencies = [
 
 [[package]]
 name = "hal-sdk"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest",
  "serde",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "hal-web"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "console_error_panic_hook",
  "hal-sdk",
